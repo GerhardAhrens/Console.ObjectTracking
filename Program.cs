@@ -16,9 +16,12 @@
 namespace Console.ObjectTracking
 {
     using System;
+    using System.Collections.Concurrent;
     using System.ComponentModel;
     using System.Reflection;
+    using System.Runtime.CompilerServices;
     using System.Security.Cryptography;
+    using System.Xml.Linq;
 
     public class Program
     {
@@ -69,6 +72,7 @@ namespace Console.ObjectTracking
 
             Console.WriteLine($"Änderungsstatus: {v1.IsChanged}; nach AcceptChanges()");
 
+            Console.WriteLine("Mit einer beliebigen Taste zum Menü.");
             Console.ReadKey();
         }
 
@@ -90,19 +94,27 @@ namespace Console.ObjectTracking
             v2.Developer = "C#, WPF";
             Console.WriteLine($"Änderungsstatus: {v2.IsChanged};");
             Console.WriteLine($"Änderung: {v2.Developer};");
+            Console.WriteLine();
+            foreach (KeyValuePair<string,object> item in v2.OriginalValues)
+            {
+                Console.WriteLine($"Änderungen: {item.Key}-{item.Value};");
+            }
 
+            Console.WriteLine();
             Console.WriteLine("RejectChanges()");
             v2.RejectChanges();
 
             Console.WriteLine($"Änderungsstatus: {v2.IsChanged};");
-            Console.WriteLine($"Änderung: {v2.Developer};");
+            Console.WriteLine($"Nach RejectChanges(): {v2.Developer};");
 
+            Console.WriteLine("Mit einer beliebigen Taste zum Menü.");
             Console.ReadKey();
         }
     }
 
     public class ViewItemTrackingV1 : IChangeTracking
     {
+        #region Properties
         private Guid _Id;
         public Guid Id
         {
@@ -172,16 +184,16 @@ namespace Console.ObjectTracking
                 }
             }
         }
+        #endregion Properties
 
         public bool IsChanged { get; private set; }
 
         public void AcceptChanges() => IsChanged = false;
     }
 
-    public class ViewItemTrackingV2 : IRevertibleChangeTracking
+    public class ViewItemTrackingV2 : TrackingBase, IRevertibleChangeTracking
     {
-        Dictionary<string, object> _Values = new Dictionary<string, object>();
-
+        #region Properties
         private Guid _Id;
         public Guid Id
         {
@@ -191,7 +203,7 @@ namespace Console.ObjectTracking
                 if (this._Id != value)
                 {
                     this._Id = value;
-                    this.IsChanged = true;
+                    base.AddOriginalValues(nameof(Id), this._Id);
                 }
             }
         }
@@ -204,13 +216,8 @@ namespace Console.ObjectTracking
             {
                 if (this._Name != value)
                 {
-                    if (_Values.ContainsKey(nameof(Name)) == false)
-                    {
-                        _Values[nameof(Name)] = _Name;
-                    }
-
+                    base.AddOriginalValues(nameof(Name), this._Name);
                     this._Name = value;
-                    this.IsChanged = true;
                 }
             }
         }
@@ -223,13 +230,8 @@ namespace Console.ObjectTracking
             {
                 if (this._Developer != value)
                 {
-                    if (_Values.ContainsKey(nameof(Developer)) == false)
-                    {
-                        _Values[nameof(Developer)] = _Developer;
-                    }
-
+                    base.AddOriginalValues(nameof(Developer), this._Developer);
                     this._Developer = value;
-                    this.IsChanged = true;
                 }
             }
         }
@@ -242,13 +244,8 @@ namespace Console.ObjectTracking
             {
                 if (this._Gehalt != value)
                 {
-                    if (_Values.ContainsKey(nameof(Gehalt)) == false)
-                    {
-                        _Values[nameof(Gehalt)] = _Gehalt;
-                    }
-
+                    base.AddOriginalValues(nameof(Gehalt), this._Gehalt);
                     this._Gehalt = value;
-                    this.IsChanged = true;
                 }
             }
         }
@@ -261,22 +258,16 @@ namespace Console.ObjectTracking
             {
                 if (this._Status != value)
                 {
-                    if (_Values.ContainsKey(nameof(Gehalt)) == false)
-                    {
-                        _Values[nameof(Gehalt)] = _Gehalt;
-                    }
-
+                    base.AddOriginalValues(nameof(Status), this._Status);
                     this._Status = value;
-                    this.IsChanged = true;
                 }
             }
         }
-
-        public bool IsChanged { get; private set; }
+        #endregion Properties
 
         public void RejectChanges()
         {
-            foreach (var property in _Values)
+            foreach (KeyValuePair<string,object> property in this.OriginalValues)
             {
                 this.GetType().GetRuntimeProperty(property.Key).SetValue(this, property.Value);
             }
@@ -286,13 +277,33 @@ namespace Console.ObjectTracking
 
         public void AcceptChanges()
         {
-            this._Values.Clear();
-            this.IsChanged = false;
+            base.ResetChanged();
         }
     }
 
     public abstract class TrackingBase
     {
-        Dictionary<string, object> _Values = new Dictionary<string, object>();
+        private readonly ConcurrentDictionary<string, object> originalValues = new ConcurrentDictionary<string, object>();
+
+        public int CountChanges { get { return this.originalValues.Count(); } }
+
+        public ConcurrentDictionary<string, object> OriginalValues { get { return this.originalValues; } }
+
+        public bool IsChanged { get; private set; }
+
+        public void AddOriginalValues(string key, object originalValue)
+        {
+            if (this.originalValues.ContainsKey(key) == false)
+            {
+                this.originalValues[key] = originalValue;
+                this.IsChanged = true;
+            }
+        }
+
+        public void ResetChanged()
+        {
+            this.originalValues.Clear();
+            this.IsChanged = false;
+        }
     }
 }
