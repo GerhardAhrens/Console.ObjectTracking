@@ -6,14 +6,27 @@
 ![Version](https://img.shields.io/badge/Version-1.0.2025.0-yellow.svg)]
 
 Mit den beiden Interface *IChangeTracking* und *IRevertibleChangeTracking* werden Methoden implementiert um Änderungen an einem Objekt verfolgen zu können.
-Speziell das Interface *IRevertibleChangeTracking* ermöglicht auch die Implementierung ein Zurücksetzten *RejectChanges()* der Änderungen. 
+Die beiden Interface sind Bestandteil des NET Framework und sind unter dem Namespace *System.ComponentModel* zu finden.
+Speziell das Interface *IRevertibleChangeTracking* ermöglicht auch die Implementierung für ein Zurücksetzten *RejectChanges()* der der letzten Änderungen.
 
 Beispiel mit dem Interface *IRevertibleChangeTracking*
 ```csharp
 public class ViewItemTrackingV2 : TrackingBase, IRevertibleChangeTracking
 {
     #region Properties
-    //  
+    private string _Name;
+    public string Name
+    {
+        get => this._Name;
+        set
+        {
+            if (this._Name != value)
+            {
+                base.AddOriginalValues(nameof(Name), this._Name);
+                this._Name = value;
+            }
+        }
+    }
     #endregion Properties
 
     public void RejectChanges()
